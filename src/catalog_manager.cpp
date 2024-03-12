@@ -67,7 +67,7 @@ void Database::CreateTable(SQLCreateTable &st) {
   Table tb;
   for (int i = 0; i < st.attrs().size(); ++i) {
     tb.AddAttribute(st.attrs()[i]);
-    record_length += st.attrs()[i].length();
+    record_length += st.attrs()[i].length(); // concerning st.attrs()[i].length(): if data_type_==0 or ==1 then length_==4, otherwise if it is a string then length depends on how it is defined
   }
   tb.set_tb_name(st.tb_name());
   tb.set_record_length(record_length);
@@ -96,7 +96,7 @@ void Database::DropIndex(SQLDropIndex &st) {
   }
 }
 
-Table *Database::GetTable(std::string tb_name) {
+Table* Database::GetTable(std::string tb_name) {
   for (unsigned int i = 0; i < tbs_.size(); ++i) {
     if (tbs_[i].tb_name() == tb_name) {
       return &tbs_[i];

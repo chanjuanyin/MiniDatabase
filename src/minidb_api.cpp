@@ -22,12 +22,14 @@ MiniDBAPI::~MiniDBAPI() {
   delete cm_;
 }
 
+// Case 10
 void MiniDBAPI::Quit() {
   delete hdl_;
   delete cm_;
   std::cout << "Quiting..." << std::endl;
 }
 
+// Case 20
 void MiniDBAPI::Help() {
   std::cout << "MiniDB 1.0.0" << std::endl;
   std::cout << "Implemented SQL types:" << std::endl;
@@ -49,6 +51,7 @@ void MiniDBAPI::Help() {
   std::cout << "#UPDATE#" << std::endl;
 }
 
+// Case 30
 void MiniDBAPI::CreateDatabase(SQLCreateDatabase &st) {
   std::cout << "Creating database: " << st.db_name() << std::endl;
   std::string folder_name(path_ + st.db_name());
@@ -73,6 +76,61 @@ void MiniDBAPI::CreateDatabase(SQLCreateDatabase &st) {
   cm_->WriteArchiveFile();
 }
 
+// Case 31
+void MiniDBAPI::CreateTable(SQLCreateTable &st) {
+  std::cout << "Creating table: " << st.tb_name() << std::endl;
+  if (curr_db_.length() == 0) {
+    throw NoDatabaseSelectedException();
+  }
+
+  Database *db = cm_->GetDB(curr_db_);
+  if (db == NULL) {
+    throw DatabaseNotExistException();
+  }
+
+  if (db->GetTable(st.tb_name()) != NULL) {
+    throw TableAlreadyExistsException();
+  }
+
+  std::string file_name(path_ + curr_db_ + "/" + st.tb_name() + ".records");
+  boost::filesystem::path folder_path(file_name);
+
+  if (boost::filesystem::exists(file_name)) {
+    boost::filesystem::remove(file_name);
+    std::cout << "Table file already exists and deleted!" << std::endl;
+  }
+
+  ofstream ofs(file_name);
+  ofs.close();
+  std::cout << "Table file created!" << std::endl;
+
+  db->CreateTable(st);
+  std::cout << "Catalog written!" << std::endl;
+  cm_->WriteArchiveFile();
+}
+
+// Case 32
+void MiniDBAPI::CreateIndex(SQLCreateIndex &st) {
+  if (curr_db_.length() == 0) {
+    throw NoDatabaseSelectedException();
+  }
+
+  Database *db = cm_->GetDB(curr_db_);
+
+  if (db->GetTable(st.tb_name()) == NULL) {
+    throw TableNotExistException();
+  }
+
+  if (db->CheckIfIndexExists(st.index_name())) {
+    throw IndexAlreadyExistsException();
+  }
+
+  IndexManager *im = new IndexManager(cm_, hdl_, curr_db_); // Index manager
+  im->CreateIndex(st);
+  delete im;
+}
+
+// Case 40
 void MiniDBAPI::ShowDatabases() {
   std::vector<Database> dbs = cm_->dbs();
   std::cout << "DATABASE LIST:" << std::endl;
@@ -82,6 +140,25 @@ void MiniDBAPI::ShowDatabases() {
   }
 }
 
+// Case 41
+void MiniDBAPI::ShowTables() {
+  if (curr_db_.length() == 0) {
+    throw NoDatabaseSelectedException();
+  }
+
+  Database *db = cm_->GetDB(curr_db_);
+  if (db == NULL) {
+    throw DatabaseNotExistException();
+  }
+  std::cout << "CURRENT DATABASE: " << curr_db_ << std::endl;
+  std::cout << "TABLE LIST:" << std::endl;
+  for (int i = 0; i < db->tbs().size(); ++i) {
+    Table tb = db->tbs()[i];
+    std::cout << "\t" << tb.tb_name() << std::endl;
+  }
+}
+
+// Case 50
 void MiniDBAPI::DropDatabase(SQLDropDatabase &st) {
   std::cout << "Dropping database: " << st.db_name() << std::endl;
 
@@ -120,122 +197,7 @@ void MiniDBAPI::DropDatabase(SQLDropDatabase &st) {
   }
 }
 
-void MiniDBAPI::Use(SQLUse &st) {
-  Database *db = cm_->GetDB(st.db_name());
-
-  if (db == NULL) {
-    throw DatabaseNotExistException();
-  }
-
-  if (curr_db_.length() != 0) {
-    std::cout << "Closing the old database: " << curr_db_ << std::endl;
-    cm_->WriteArchiveFile();
-    delete hdl_;
-  }
-  curr_db_ = st.db_name();
-  hdl_ = new BufferManager(path_);
-}
-
-void MiniDBAPI::CreateTable(SQLCreateTable &st) {
-  std::cout << "Creating table: " << st.tb_name() << std::endl;
-  if (curr_db_.length() == 0) {
-    throw NoDatabaseSelectedException();
-  }
-
-  Database *db = cm_->GetDB(curr_db_);
-  if (db == NULL) {
-    throw DatabaseNotExistException();
-  }
-
-  if (db->GetTable(st.tb_name()) != NULL) {
-    throw TableAlreadyExistsException();
-  }
-
-  std::string file_name(path_ + curr_db_ + "/" + st.tb_name() + ".records");
-  boost::filesystem::path folder_path(file_name);
-
-  if (boost::filesystem::exists(file_name)) {
-    boost::filesystem::remove(file_name);
-    std::cout << "Table file already exists and deleted!" << std::endl;
-  }
-
-  ofstream ofs(file_name);
-  ofs.close();
-  std::cout << "Table file created!" << std::endl;
-
-  db->CreateTable(st);
-  std::cout << "Catalog written!" << std::endl;
-  cm_->WriteArchiveFile();
-}
-
-void MiniDBAPI::ShowTables() {
-  if (curr_db_.length() == 0) {
-    throw NoDatabaseSelectedException();
-  }
-
-  Database *db = cm_->GetDB(curr_db_);
-  if (db == NULL) {
-    throw DatabaseNotExistException();
-  }
-  std::cout << "CURRENT DATABASE: " << curr_db_ << std::endl;
-  std::cout << "TABLE LIST:" << std::endl;
-  for (int i = 0; i < db->tbs().size(); ++i) {
-    Table tb = db->tbs()[i];
-    std::cout << "\t" << tb.tb_name() << std::endl;
-  }
-}
-
-void MiniDBAPI::Insert(SQLInsert &st) {
-  if (curr_db_.length() == 0) {
-    throw NoDatabaseSelectedException();
-  }
-
-  Database *db = cm_->GetDB(curr_db_);
-  if (db == NULL) {
-    throw DatabaseNotExistException();
-  }
-
-  RecordManager *rm = new RecordManager(cm_, hdl_, curr_db_);
-  rm->Insert(st);
-  delete rm;
-}
-
-void MiniDBAPI::Select(SQLSelect &st) {
-  if (curr_db_.length() == 0) {
-    throw NoDatabaseSelectedException();
-  }
-
-  Table *tb = cm_->GetDB(curr_db_)->GetTable(st.tb_name());
-
-  if (tb == NULL) {
-    throw TableNotExistException();
-  }
-
-  RecordManager *rm = new RecordManager(cm_, hdl_, curr_db_);
-  rm->Select(st);
-  delete rm;
-}
-
-void MiniDBAPI::CreateIndex(SQLCreateIndex &st) {
-  if (curr_db_.length() == 0) {
-    throw NoDatabaseSelectedException();
-  }
-
-  Database *db = cm_->GetDB(curr_db_);
-
-  if (db->GetTable(st.tb_name()) == NULL) {
-    throw TableNotExistException();
-  }
-
-  if (db->CheckIfIndexExists(st.index_name())) {
-    throw IndexAlreadyExistsException();
-  }
-
-  IndexManager *im = new IndexManager(cm_, hdl_, curr_db_);
-  im->CreateIndex(st);
-  delete im;
-}
-
+// Case 51
 void MiniDBAPI::DropTable(SQLDropTable &st) {
   if (curr_db_.length() == 0) {
     throw NoDatabaseSelectedException();
@@ -252,7 +214,7 @@ void MiniDBAPI::DropTable(SQLDropTable &st) {
     throw TableNotExistException();
   }
 
-  std::string file_name(path_ + curr_db_ + "/" + st.tb_name() + ".records");
+  std::string file_name(path_ + curr_db_ + "/" + st.tb_name() + ".records"); // remove .records file
 
   if (!boost::filesystem::exists(file_name)) {
     std::cout << "Table file doesn't exist!" << std::endl;
@@ -263,7 +225,7 @@ void MiniDBAPI::DropTable(SQLDropTable &st) {
 
   std::cout << "Removing Index files!" << std::endl;
   for (int i = 0; i < tb->GetIndexNum(); ++i) {
-    std::string file_name(path_ + curr_db_ + "/" + tb->GetIndex(i)->name() +
+    std::string file_name(path_ + curr_db_ + "/" + tb->GetIndex(i)->name() + // remove .index file
                           ".index");
     if (!boost::filesystem::exists(file_name)) {
       std::cout << "Index file doesn't exist!" << std::endl;
@@ -278,6 +240,7 @@ void MiniDBAPI::DropTable(SQLDropTable &st) {
   cm_->WriteArchiveFile();
 }
 
+// Case 52
 void MiniDBAPI::DropIndex(SQLDropIndex &st) {
   if (curr_db_.length() == 0) {
     throw NoDatabaseSelectedException();
@@ -292,7 +255,7 @@ void MiniDBAPI::DropIndex(SQLDropIndex &st) {
     throw IndexNotExistException();
   }
 
-  std::string file_name(path_ + curr_db_ + "/" + st.idx_name() + ".index");
+  std::string file_name(path_ + curr_db_ + "/" + st.idx_name() + ".index"); // remove .index file
 
   if (!boost::filesystem::exists(file_name)) {
     std::cout << "Index file doesn't exist!" << std::endl;
@@ -306,6 +269,57 @@ void MiniDBAPI::DropIndex(SQLDropIndex &st) {
   cm_->WriteArchiveFile();
 }
 
+// Case 60
+void MiniDBAPI::Use(SQLUse &st) {
+  Database *db = cm_->GetDB(st.db_name());
+
+  if (db == NULL) {
+    throw DatabaseNotExistException();
+  }
+
+  if (curr_db_.length() != 0) {
+    std::cout << "Closing the old database: " << curr_db_ << std::endl;
+    cm_->WriteArchiveFile();
+    delete hdl_;
+  }
+  curr_db_ = st.db_name();
+  hdl_ = new BufferManager(path_); // Using the buffer
+}
+
+// Case 70
+void MiniDBAPI::Insert(SQLInsert &st) {
+  if (curr_db_.length() == 0) {
+    throw NoDatabaseSelectedException();
+  }
+
+  Database *db = cm_->GetDB(curr_db_);
+  if (db == NULL) {
+    throw DatabaseNotExistException();
+  }
+
+  RecordManager *rm = new RecordManager(cm_, hdl_, curr_db_);
+  rm->Insert(st);
+  delete rm;
+}
+
+// Case 90
+void MiniDBAPI::Select(SQLSelect &st) {
+  if (curr_db_.length() == 0) {
+    throw NoDatabaseSelectedException();
+  }
+
+  Table *tb = cm_->GetDB(curr_db_)->GetTable(st.tb_name());
+
+  if (tb == NULL) {
+    throw TableNotExistException();
+  }
+
+  RecordManager *rm = new RecordManager(cm_, hdl_, curr_db_);
+  rm->Select(st);
+  delete rm;
+}
+
+// Case 100
 void MiniDBAPI::Delete(SQLDelete &st) {
   if (curr_db_.length() == 0) {
     throw NoDatabaseSelectedException();
@@ -327,6 +341,7 @@ void MiniDBAPI::Delete(SQLDelete &st) {
   delete rm;
 }
 
+// Case 110
 void MiniDBAPI::Update(SQLUpdate &st) {
   if (curr_db_.length() == 0) {
     throw NoDatabaseSelectedException();

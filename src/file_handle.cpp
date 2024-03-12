@@ -22,6 +22,7 @@ FileHandle::~FileHandle() {
   }
 }
 
+// Add fileinfo to the last
 void FileHandle::AddFileInfo(FileInfo *file) {
   FileInfo *p = first_file_;
   if (p == NULL) {
@@ -58,6 +59,7 @@ BlockInfo *FileHandle::GetBlockInfo(FileInfo *file, int block_pos) {
   return NULL;
 }
 
+// Add block to the last
 void FileHandle::AddBlockInfo(BlockInfo *block) {
   BlockInfo *p = block->file()->first_block();
   if (p == NULL) {
@@ -72,6 +74,7 @@ void FileHandle::AddBlockInfo(BlockInfo *block) {
   block->file()->IncreaseRecordLength();
 }
 
+// Increase age for all blocks inside all files
 void FileHandle::IncreaseAge() {
   FileInfo *fp = first_file_;
   while (fp != NULL) {
@@ -84,6 +87,7 @@ void FileHandle::IncreaseAge() {
   }
 }
 
+// Pop and get the oldest block
 BlockInfo *FileHandle::RecycleBlock() {
 
   FileInfo *fp = first_file_;
@@ -123,9 +127,9 @@ BlockInfo *FileHandle::RecycleBlock() {
 }
 
 void FileHandle::WriteToDisk() {
-  FileInfo *fp = first_file_;
+  FileInfo* fp = first_file_;
   while (fp != NULL) {
-    BlockInfo *bp = fp->first_block();
+    BlockInfo* bp = fp->first_block();
     while (bp != NULL) {
       if (bp->dirty()) {
         bp->WriteInfo(path_);

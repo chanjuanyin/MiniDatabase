@@ -17,21 +17,21 @@ private:
 public:
   MiniDBAPI(std::string p);
   ~MiniDBAPI();
-  void Quit();
-  void Help();
-  void CreateDatabase(SQLCreateDatabase &st);
-  void ShowDatabases();
-  void DropDatabase(SQLDropDatabase &st);
-  void DropTable(SQLDropTable &st);
-  void DropIndex(SQLDropIndex &st);
-  void Use(SQLUse &st);
-  void CreateTable(SQLCreateTable &st);
-  void ShowTables();
-  void Insert(SQLInsert &st);
-  void Select(SQLSelect &st);
-  void CreateIndex(SQLCreateIndex &st);
-  void Delete(SQLDelete &st);
-  void Update(SQLUpdate &st);
+  void Quit();  // Case 10
+  void Help();  // Case 20
+  void CreateDatabase(SQLCreateDatabase &st);  // Case 30
+  void CreateTable(SQLCreateTable &st);  // Case 31
+  void CreateIndex(SQLCreateIndex &st);  // Case 32
+  void ShowDatabases();  // Case 40
+  void ShowTables();  // Case 41
+  void DropDatabase(SQLDropDatabase &st);  // Case 50
+  void DropTable(SQLDropTable &st);  // Case 51
+  void DropIndex(SQLDropIndex &st);  // Case 52
+  void Use(SQLUse &st);  // Case 60
+  void Insert(SQLInsert &st);  // Case 70
+  void Select(SQLSelect &st);  // Case 90
+  void Delete(SQLDelete &st);  // Case 100
+  void Update(SQLUpdate &st);  // Case 110
 };
 
 #endif /* MINIDB_MINIDB_API_H_ */

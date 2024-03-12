@@ -289,14 +289,17 @@ void SQLInsert::Parse(std::vector<std::string> sql_vector) {
     is_attr = false;
     SQLValue sql_value;
     std::string value = sql_vector[pos];
-    if (value.at(0) == '\'' || value.at(0) == '\"') {
+    // if it is a string datatype
+    if (value.at(0) == '\'' || value.at(0) == '\"') { // '\'' means single quotation, '\"' means double quotation
       value.assign(value, 1, value.length() - 2);
-      sql_value.data_type = 2;
+      sql_value.data_type = 2; // then sql_value.data_type = 2 means it is a string
     } else {
-      if (value.find(".") != string::npos) {
-        sql_value.data_type = 1;
+      // if it is a float datatype
+      if (value.find(".") != string::npos) { // if '.' in value:
+        sql_value.data_type = 1; // then sql_value.data_type = 1 means it is a float
       } else {
-        sql_value.data_type = 0;
+        // else it is an integer datatype
+        sql_value.data_type = 0; // then sql_value.data_type = 0 means it is an int
       }
     }
     sql_value.value = value;
@@ -318,7 +321,7 @@ int SQL::ParseDataType(std::vector<std::string> sql_vector, Attribute &attr,
     std::cout << "TYPE: "
               << "int" << std::endl;
     attr.set_data_type(T_INT);
-    attr.set_length(4);
+    attr.set_length(4); // integer has length = 4
     pos++;
     if (sql_vector[pos] == ",") {
       pos++;
@@ -327,7 +330,7 @@ int SQL::ParseDataType(std::vector<std::string> sql_vector, Attribute &attr,
     std::cout << "TYPE: "
               << "float" << std::endl;
     attr.set_data_type(T_FLOAT);
-    attr.set_length(4);
+    attr.set_length(4); // float has length = 4
     pos++;
     if (sql_vector[pos] == ",") {
       pos++;
@@ -338,7 +341,7 @@ int SQL::ParseDataType(std::vector<std::string> sql_vector, Attribute &attr,
     if (sql_vector[pos] == "(") {
       pos++;
     }
-    attr.set_length(atoi(sql_vector[pos].c_str()));
+    attr.set_length(atoi(sql_vector[pos].c_str())); // string has length = whatever is written in the parenthesis (atoi means convert string to int)
     pos++;
     if (sql_vector[pos] == ")") {
       pos++;

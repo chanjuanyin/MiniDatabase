@@ -14,9 +14,9 @@ class Index;
 
 class TKey {
 private:
-  int key_type_;
-  char *key_;
-  int length_;
+  int key_type_; // 0 means int, 1 means float, 2 means string
+  char *key_; // the particular value
+  int length_; // 4 for int and float, string length for string
 
 public:
   TKey(int keytype, int length) {

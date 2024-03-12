@@ -5,18 +5,19 @@
 
 #include "block_handle.h"
 #include "file_handle.h"
+#include "block_info.h"
 
 class BufferManager {
 private:
-  BlockHandle *bhandle_;
-  FileHandle *fhandle_;
+  BlockHandle *bhandle_; // container of initial 300 empty blocks
+  FileHandle *fhandle_;  // container of all blocks that are currently in use
   std::string path_;
 
-  BlockInfo *GetUsableBlock();
+  BlockInfo *GetUsableBlock(); // if bhandle_ has empty block, use it; else recycle the oldest block from fhandle_
 
 public:
   BufferManager(std::string p)
-      : bhandle_(new BlockHandle(p)), fhandle_(new FileHandle(p)), path_(p) {}
+      : bhandle_(new BlockHandle(p, 300)), fhandle_(new FileHandle(p)), path_(p) {}
   ~BufferManager() {
     delete bhandle_;
     delete fhandle_;

@@ -6,8 +6,6 @@
 #include "commons.h"
 #include "file_info.h"
 
-class FileInfo;
-
 class BlockInfo {
 private:
   FileInfo *file_;
@@ -18,10 +16,16 @@ private:
   BlockInfo *next_;
 
 public:
-  BlockInfo(int num)
+  BlockInfo(int num) // input block number
       : dirty_(false), next_(NULL), file_(NULL), age_(0), block_num_(num) {
     data_ = new char[4 * 1024];
   }
+
+  // byte index 0-3 record previous block number, 
+  // byte index 4-7 record next block number
+  // byte index 8-11 record record count, which means number of rows of the table contained in this block
+  // byte index 12 onwards, record content
+
   virtual ~BlockInfo() { delete[] data_; }
   FileInfo *file() { return file_; }
   void set_file(FileInfo *f) { file_ = f; }
@@ -50,13 +54,13 @@ public:
 
   int GetNextBlockNum() { return *(int *)(data_ + 4); }
 
-  void SetRecordCount(int count) { *(int *)(data_ + 8) = count; }
+  void SetRecordCount(int count) { *(int *)(data_ + 8) = count; } // byte index 8-11 record record count, which means number of rows of the table contained in this block
 
-  void DecreaseRecordCount() { *(int *)(data_ + 8) = *(int *)(data_ + 8) - 1; }
+  void DecreaseRecordCount() { *(int *)(data_ + 8) = *(int *)(data_ + 8) - 1; } // byte index 8-11 record record count, which means number of rows of the table contained in this block
 
-  int GetRecordCount() { return *(int *)(data_ + 8); }
+  int GetRecordCount() { return *(int *)(data_ + 8); } // byte index 8-11 record record count, which means number of rows of the table contained in this block
 
-  char *GetContentAddress() { return data_ + 12; }
+  char *GetContentAddress() { return data_ + 12; } // byte index 12 onwards, record content
 
   void ReadInfo(std::string path);
   void WriteInfo(std::string path);

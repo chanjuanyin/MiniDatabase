@@ -10,10 +10,12 @@
 #include "exceptions.h"
 #include "minidb_api.h"
 
+#include "sql_statement.h"
+
 using namespace std;
 
 Interpreter::Interpreter() : sql_type_(-1) {
-  string p = string(getenv("HOME")) + "/MiniDBData/";
+  string p = boost::filesystem::current_path().parent_path().string() + "/MiniDatabase/";
   api = new MiniDBAPI(p);
 }
 
@@ -196,7 +198,7 @@ void Interpreter::Run() {
       api->Insert(*st);
       delete st;
     } break;
-    case 80: {
+    case 80: {  // else if (sql_vector_[0] == "exec")
       SQLExec *st = new SQLExec(sql_vector_);
       string contents;
       ifstream in(st->file_name(), ios::in | ios::binary);

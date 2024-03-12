@@ -10,6 +10,9 @@ BlockHandle::~BlockHandle() {
   }
 }
 
+// Initiate 301 new BlockInfo(0) and return the last new BlockInfo(0) block
+// first_block_ new BlockInfo(0) will never be used
+// Note: new BlockInfo(0) will have block number 0
 BlockInfo *BlockHandle::Add(BlockInfo *block) {
   BlockInfo *adder = new BlockInfo(0);
   adder->set_next(block->next());
@@ -22,6 +25,7 @@ BlockInfo *BlockHandle::Add(BlockInfo *block) {
   }
 }
 
+// Pop and get the empty block which lines up immediately after first_block_
 BlockInfo *BlockHandle::GetUsableBlock() {
   if (bcount_ == 0) {
     return NULL;
@@ -35,6 +39,7 @@ BlockInfo *BlockHandle::GetUsableBlock() {
   return p;
 }
 
+// Put back an empty block after first_block_
 void BlockHandle::FreeBlock(BlockInfo *block) {
   if (bcount_ == 0) {
     first_block_ = block;

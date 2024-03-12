@@ -74,7 +74,7 @@ private:
   template <class Archive>
   void serialize(Archive &ar, const unsigned int version) {
     ar &tb_name_;
-    ar &record_length_;
+    ar &record_length_; // total number of bytes for all attributes
     ar &first_block_num_;
     ar &first_rubbish_num_;
     ar &block_count_;
@@ -83,13 +83,13 @@ private:
   }
 
   std::string tb_name_;
-  int record_length_;
+  int record_length_; // total number of bytes for all attributes
 
   int first_block_num_;
   int first_rubbish_num_;
   int block_count_;
 
-  std::vector<Attribute> ats_;
+  std::vector<Attribute> ats_; // ats_length also can get the number of attributes
   std::vector<Index> ids_;
 
 public:
@@ -99,12 +99,12 @@ public:
   ~Table() {}
 
   std::string tb_name() { return tb_name_; }
-  void set_tb_name(std::string tbname) { tb_name_ = tbname; }
+  void set_tb_name(std::string tbname) { tb_name_ = tbname; } // Used
 
   int record_length() { return record_length_; }
-  void set_record_length(int len) { record_length_ = len; }
+  void set_record_length(int len) { record_length_ = len; } // Used
 
-  std::vector<Attribute> &ats() { return ats_; }
+  std::vector<Attribute> &ats() { return ats_; }; // ats_length also can get the number of attributes
   Attribute *GetAttribute(std::string name);
   int GetAttributeIndex(std::string name);
 
@@ -115,7 +115,7 @@ public:
   int block_count() { return block_count_; }
 
   unsigned long GetAttributeNum() { return ats_.size(); }
-  void AddAttribute(Attribute &attr) { ats_.push_back(attr); }
+  void AddAttribute(Attribute &attr) { ats_.push_back(attr); } // Used
   void IncreaseBlockCount() { block_count_++; }
 
   std::vector<Index> &ids() { return ids_; }
@@ -137,9 +137,9 @@ private:
   }
 
   std::string attr_name_;
-  int data_type_;
-  int length_;
-  int attr_type_;
+  int data_type_; // if int then it is 0, if float then it is 1, if string then it is 2
+  int length_; // if data_type_==0 or ==1 then length_==4, otherwise if it is a string then length depends on how it is defined
+  int attr_type_; // 0 means non-primary key, 1 means primary key
 
 public:
   Attribute() : attr_name_(""), data_type_(-1), length_(-1), attr_type_(0) {}

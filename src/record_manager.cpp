@@ -7,11 +7,15 @@
 
 using namespace std;
 
-BlockInfo *RecordManager::GetBlockInfo(Table *tbl, int block_num) {
+// Get the block_info which matches your db_name_, tbl->tb_name() and block_num
+// Get the block_info from hdl (buffer) fhandle_
+// if fhandle_ doesn't have one, then either get an empty block from bhandle_, or recycle the oldest block from fhandle_
+// and read from the memory of the corresponding db_name_, tbl->tb_name() and block_num
+BlockInfo* RecordManager::GetBlockInfo(Table *tbl, int block_num) {
   if (block_num == -1) {
     return NULL;
   }
-  BlockInfo *block = hdl_->GetFileBlock(db_name_, tbl->tb_name(), 0, block_num);
+  BlockInfo *block = hdl_->GetFileBlock(db_name_, tbl->tb_name(), 0, block_num); // 0 here refers to the file type (0 means record, 1 means index)
   return block;
 }
 
@@ -25,7 +29,8 @@ void RecordManager::Insert(SQLInsert &st) {
     throw TableNotExistException();
   }
 
-  int max_count = (4096 - 12) / (tbl->record_length());
+  int max_count = (4096 - 12) / (tbl->record_length()); // tbl->record_length() is total number of bytes for all attributes
+  // max_count means the maximum number of rows that one block can fit
 
   vector<TKey> tkey_values;
   int pk_index = -1;
@@ -33,7 +38,9 @@ void RecordManager::Insert(SQLInsert &st) {
   for (int i = 0; i < values_size; ++i) {
     int value_type = st.values()[i].data_type;
     string value = st.values()[i].value;
-    int length = tbl->ats()[i].length();
+    int length = tbl->ats()[i].length(); // tbl->ats() means table's attribute vector
+    // The length here is the number of bytes of the data
+    // if data_type_==0 or ==1 then length_==4, otherwise if it is a string then length depends on how it is defined
 
     TKey tmp(value_type, length);
     tmp.ReadValue(value.c_str());
@@ -44,9 +51,11 @@ void RecordManager::Insert(SQLInsert &st) {
     }
   }
 
+  // if there is a primary key
+  // then of course need to check against PrimaryKeyConflictException
   if (pk_index != -1) {
 
-    if (tbl->GetIndexNum() != 0) {
+    if (tbl->GetIndexNum() != 0) { // Get the number of indices associated with this table
 
       BPlusTree tree(tbl->GetIndex(0), hdl_, cm_, db_name_);
 
@@ -54,10 +63,10 @@ void RecordManager::Insert(SQLInsert &st) {
       if (value != -1) {
         throw PrimaryKeyConflictException();
       }
-    } else {
+    } else { // There is a primary key but doesn't have an index for this table
       int block_num = tbl->first_block_num();
       for (int i = 0; i < tbl->block_count(); ++i) {
-        BlockInfo *bp = GetBlockInfo(tbl, block_num);
+        BlockInfo* bp = GetBlockInfo(tbl, block_num);
 
         for (int j = 0; j < bp->GetRecordCount(); ++j) {
           vector<TKey> tkey_value = GetRecord(tbl, block_num, j);
@@ -78,27 +87,43 @@ void RecordManager::Insert(SQLInsert &st) {
   int lastub;
   int blocknum, offset;
 
-  // find the block for use from the useful block
-  while (ub != -1) {
-    lastub = ub;
+  // I want you to first imagine a linkedlist of useful blocks which belong to the same file (double-way linkedlist)
+  // Arranging in block number, they are, e.g. 5 <-> 4 <-> 1 <-> 0. Not all useful blocks are full
+  // There is also another linkedlist of rubbish blocks, e.g. 2 -> 3 (single-way linkedlist)
+  // Now what the function is doing is that:
+  // First, it traverse across the useful linkedlist and see if there is any block that is not full yet. If so, then it fills the row into that block
+  // If all blocks in the useful linkedlist are filled then it does the following:
+  // If there exists rubbish block, then take the first rubbish block, in our case is block number 2, and append it to the end of the useful linkedlist
+  // So now our useful linkedlist (double-way) becomes 5 <-> 4 <-> 1 <-> 0 <-> 2 and our rubbish linkedlist (single-way) becomes 3
+  // The new inserted row will be inserted into block number 2. 
+  // If on the other hand there are no rubbish blocks, but since you still need to insert a new row
+  // So what you will do is add a new useful block to the front of the useful linkedlist
+  // So now the useful linkedlist (double-way) becomes 6 <-> 5 <-> 4 <-> 1 <-> 0 <-> 2 with the new row added into block number 6.
+
+  // First, it traverse across the useful linkedlist and see if there is any block that is not full yet. If so, then it fills the row into that block
+  while (ub != -1) { // keep traversing through the linkedlist of useful blocks
+    lastub = ub;     // lastup is used to record the last element of the useful linkedlist
     BlockInfo *bp = GetBlockInfo(tbl, ub);
-    if (bp->GetRecordCount() == max_count) {
+    // if this block is filled, move on to the next block in the useful linkedlist
+    if (bp->GetRecordCount() == max_count) { // bp->GetRecordCount() means number of rows contained in this block
       ub = bp->GetNextBlockNum();
       continue;
     }
     content =
-        bp->GetContentAddress() + bp->GetRecordCount() * tbl->record_length();
+        bp->GetContentAddress() + bp->GetRecordCount() * tbl->record_length();  
+        // bp->GetRecordCount() means number of rows contained in this block
+        // tbl->record_length() is total number of bytes for all attributes
     for (vector<TKey>::iterator iter = tkey_values.begin();
          iter != tkey_values.end(); ++iter) {
       memcpy(content, iter->key(), iter->length());
       content += iter->length();
     }
-    bp->SetRecordCount(1 + bp->GetRecordCount());
+    bp->SetRecordCount(1 + bp->GetRecordCount()); // set the number of rows to +1
 
     blocknum = ub;
     offset = bp->GetRecordCount() - 1;
 
-    hdl_->WriteBlock(bp);
+    hdl_->WriteBlock(bp); // only setting bp to dirty
 
     // add record to index
     if (tbl->GetIndexNum() != 0) {
@@ -117,7 +142,16 @@ void RecordManager::Insert(SQLInsert &st) {
     return;
   }
 
-  if (frb != -1) {
+  // Suppose our original useful linkedlist (double-way) is 5 <-> 4 <-> 1 <-> 0 and our original rubbish linkedlist (single-way) is 2 -> 3
+  // If all blocks in the useful linkedlist are filled then it does the following:
+
+  // If there exists rubbish block, then take the first rubbish block, in our case is block number 2, and append it to the end of the useful linkedlist
+  // So now our useful linkedlist (double-way) becomes 5 <-> 4 <-> 1 <-> 0 <-> 2 and our rubbish linkedlist (single-way) becomes 3
+  // The new inserted row will be inserted into block number 2. 
+
+  // Remember lastup is the last element of the original useful linkedlist, in our case, it is block number 0
+
+  if (frb != -1) { // if there is rubbish block in the table
     BlockInfo *bp = GetBlockInfo(tbl, frb);
     content = bp->GetContentAddress();
     for (vector<TKey>::iterator iter = tkey_values.begin();
@@ -127,7 +161,7 @@ void RecordManager::Insert(SQLInsert &st) {
     }
     bp->SetRecordCount(1);
 
-    BlockInfo *lastubp = GetBlockInfo(tbl, lastub);
+    BlockInfo *lastubp = GetBlockInfo(tbl, lastub); // Remember lastup is the last element of the original useful linkedlist, in our case, it is block number 0
     lastubp->SetNextBlockNum(frb);
 
     tbl->set_first_rubbish_num(bp->GetNextBlockNum());
@@ -138,19 +172,27 @@ void RecordManager::Insert(SQLInsert &st) {
     blocknum = frb;
     offset = 0;
 
-    hdl_->WriteBlock(bp);
-    hdl_->WriteBlock(lastubp);
+    hdl_->WriteBlock(bp); // set bp as dirty
+    hdl_->WriteBlock(lastubp); // set lastubp as dirty
 
-  } else {
-    // initial or add a block
-    int next_block = tbl->first_block_num();
+  } 
+
+  // Suppose our original useful linkedlist (double-way) is 5 <-> 4 <-> 1 <-> 0 <-> 2 and our original rubbish linkedlist (single-way) is 3
+
+  // If on the other hand there are no rubbish blocks, but since you still need to insert a new row
+  // So what you will do is add a new useful block to the front of the useful linkedlist
+  // So now the useful linkedlist (double-way) becomes 6 <-> 5 <-> 4 <-> 1 <-> 0 <-> 2 with the new row added into block number 6.
+
+  else { // there is no rubbish block in the table
+    int next_block = tbl->first_block_num(); // get the head of the original useful linkedlist, in our case is block number 5
+    // If the useful linkedlist is not empty, i.e. if the head of the useful linkedlist is not -1
     if (tbl->first_block_num() != -1) {
       BlockInfo *upbp = GetBlockInfo(tbl, tbl->first_block_num());
-      upbp->SetPrevBlockNum(tbl->block_count());
-      hdl_->WriteBlock(upbp);
+      upbp->SetPrevBlockNum(tbl->block_count()); // preparing to add a new block (block number 6) at the front of the useful linkedlist
+      hdl_->WriteBlock(upbp); // set upbp to dirty, since you have changed the value of byte index 0-3 in this block
     }
-    tbl->set_first_block_num(tbl->block_count());
-    BlockInfo *bp = GetBlockInfo(tbl, tbl->first_block_num());
+    tbl->set_first_block_num(tbl->block_count()); // setting the head of the useful linkedlist (double-way) to be block number 6
+    BlockInfo* bp = GetBlockInfo(tbl, tbl->first_block_num());
 
     bp->SetPrevBlockNum(-1);
     bp->SetNextBlockNum(next_block);
@@ -166,7 +208,7 @@ void RecordManager::Insert(SQLInsert &st) {
     blocknum = tbl->block_count();
     offset = 0;
 
-    hdl_->WriteBlock(bp);
+    hdl_->WriteBlock(bp); // set bp to dirty
 
     tbl->IncreaseBlockCount();
   }
@@ -215,6 +257,7 @@ void RecordManager::Select(SQLSelect &st) {
     }
   }
 
+  // if no index
   if (!has_index) {
     int block_num = tbl->first_block_num();
     for (int i = 0; i < tbl->block_count(); ++i) {
@@ -238,7 +281,8 @@ void RecordManager::Select(SQLSelect &st) {
 
       block_num = bp->GetNextBlockNum();
     }
-  } else { // if has index
+  } 
+  else { // if has index
     BPlusTree tree(tbl->GetIndex(index_idx), hdl_, cm_, db_name_);
 
     // build TKey for search
@@ -272,7 +316,7 @@ void RecordManager::Select(SQLSelect &st) {
 
   for (int i = 0; i < tkey_values.size(); ++i) {
     for (int j = 0; j < tkey_values[i].size(); ++j) {
-      cout << tkey_values[i][j];
+      cout << setw(9) << left << tkey_values[i][j];
     }
     cout << endl;
   }
@@ -305,6 +349,7 @@ void RecordManager::Delete(SQLDelete &st) {
     }
   }
 
+  // if no index
   if (!has_index) {
     int block_num = tbl->first_block_num();
     for (int i = 0; i < tbl->block_count(); ++i) {
@@ -341,7 +386,8 @@ void RecordManager::Delete(SQLDelete &st) {
 
       block_num = bp->GetNextBlockNum();
     }
-  } else { // if has index
+  } 
+  else { // if has index
     BPlusTree tree(tbl->GetIndex(index_idx), hdl_, cm_, db_name_);
 
     // build TKey for search
